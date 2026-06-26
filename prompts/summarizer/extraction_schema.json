@@ -1,0 +1,10 @@
+{
+  "fields": [
+    "hypotheses",
+    "decisions",
+    "findings",
+    "todos",
+    "failed_experiments",
+    "important_references"
+  ]
+}

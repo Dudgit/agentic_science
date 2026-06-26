@@ -1,0 +1,65 @@
+{
+  "hypotheses": [],
+  "decisions": [],
+  "findings": [
+    "Hounsfield Look Up Tables (LUTs) are used to convert raw CT data into Hounsfield units (HU), which are standardized values for tissue density.",
+    "Water is assigned a value of 0 HU, and air is assigned a negative value (approximately -1000 HU).",
+    "Different tissues and materials have distinct Hounsfield values, such as fat (20-40 HU), bone (1000 HU), and lung tissue (-950 to -1000 HU).",
+    "The Hounsfield Look-Up Table is essential for converting raw CT data into interpretable grayscale images using the Hounsfield scale.",
+    "The scale ranges from -1000 to +1000, with water at 0, air at -1000, and bone at +1000."
+  ],
+  "todos": [
+    "Understand the researcher\u2019s specific needs and objectives.",
+    "Develop a structured project plan including timelines and milestones.",
+    "Provide guidance on selecting appropriate research methods and data collection techniques.",
+    "Ensure compliance with ethical standards and relevant regulations.",
+    "Assist with data storage, security, and quality management.",
+    "Offer support in data analysis using appropriate tools.",
+    "Help with grant writing and selecting funding opportunities.",
+    "Assist in writing and structuring research papers.",
+    "Provide feedback on drafts and help with revisions based on peer review comments.",
+    "Help prepare and deliver presentations at conferences and seminars.",
+    "Select appropriate journals and assist with manuscript preparation and peer review process.",
+    "Offer guidance on effectively communicating research findings to the public and media.",
+    "Provide training and support for using specialized software and tools.",
+    "Help with data visualization and creating effective visual representations of data and results.",
+    "Ensure researchers have access to necessary IT resources and infrastructure.",
+    "Help researchers build and maintain collaborations within their field.",
+    "Evaluate 3D U-Net, V-Net, and 3D ResNet for suitability to the competition requirements.",
+    "Implement data augmentation techniques to improve model generalization.",
+    "Consider using transfer learning with pre-trained models if applicable.",
+    "Review and analyze the code in agents/coding.py",
+    "Complete the CodingAgent initialization in main.py.",
+    "Verify and test the integration of different agents and backends.",
+    "Explore potential optimizations for memory management and performance."
+  ],
+  "failed_ideas": [],
+  "open_questions": [],
+  "important_references": [],
+  "implementation_notes": [],
+  "important_decisions": [
+    "Consider using 3D U-Net for proton dosage planning due to its effectiveness in handling volumetric data and capturing context.",
+    "Chosen Qwen/Qwen2.5-Coder-32B-Instruct as the CURRENT_MODEL.",
+    "Selected VLLMBackend over TFBackend for the coding agent.",
+    "The CodingAgent class inherits from BaseAgent and adds a repo_path attribute to track the repository path.",
+    "If repo_path is not provided, it defaults to the current working directory."
+  ],
+  "implemented_features": [
+    "Configuration management via config.py.",
+    "Agent initialization for QA, coding, critic, writing, and summarizer tasks.",
+    "Backend setup with VLLMBackend and model configuration.",
+    "Agents with specific prompt directories and memory files.",
+    "The build_messages method reads the live state of the repository using build_codebase_context.",
+    "The live context is appended to the base system prompt before generating messages in the OpenAI/vLLM format."
+  ],
+  "research_ideas": [
+    "Incorporate attention mechanisms into 3D U-Net to improve focus on important regions of CT volumes.",
+    "Explore the use of transformer-based architectures for 3D medical imaging tasks."
+  ],
+  "papers_to_read": [
+    "3D U-Net: Learning Dense Volumetric Segmentation from Sparse Annotation",
+    "V-Net: Fully Convolutional Neural Networks for Volumetric Medical Image Segmentation",
+    "Attention U-Net: Learning Where to Look for Medical Image Segmentation",
+    "A Survey on Deep Learning Based 3D Medical Image Segmentation"
+  ]
+}
