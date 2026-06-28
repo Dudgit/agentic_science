@@ -1,4 +1,6 @@
 # Scientific support agentic workflow
+![Agentic workflow](./docs/Agentic%20workflow%20visualized.png)
+Note that this is just a ChatGPT generated placeholder, later needs to be modified.
 
 ## TODOS:
 - Add internet search.
