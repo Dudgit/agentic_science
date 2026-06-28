@@ -5,7 +5,7 @@ from agents.coding import CodingAgent
 from backends.vllm_backend import VLLMBackend
 from backends.tf_backend import TFBackend
 
-from utils.io import load_json, update_json
+from utils.io import load_json, update_json, update_summary_md
 from utils.parser import parse_json_response
 from config import PATHS, CURRENT_MODEL
 import os
@@ -87,7 +87,6 @@ Return JSON with the following schema:
     "todos": [],
     "papers_to_read": []
 }}
-
 Only include information worth remembering.
 Do not include trivial chat.
 """

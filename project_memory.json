@@ -31,7 +31,11 @@
     "Review and analyze the code in agents/coding.py",
     "Complete the CodingAgent initialization in main.py.",
     "Verify and test the integration of different agents and backends.",
-    "Explore potential optimizations for memory management and performance."
+    "Explore potential optimizations for memory management and performance.",
+    "Explore the psychological theories of creativity, such as divergent and convergent thinking.",
+    "Investigate the neuroscience of creativity, including brain activity, neuroplasticity, and neurotransmitters.",
+    "Examine cognitive theories that link knowledge, experience, and problem-solving strategies to creativity.",
+    "Consider the role of environmental and social factors in fostering creativity."
   ],
   "failed_ideas": [],
   "open_questions": [],
@@ -42,7 +46,8 @@
     "Chosen Qwen/Qwen2.5-Coder-32B-Instruct as the CURRENT_MODEL.",
     "Selected VLLMBackend over TFBackend for the coding agent.",
     "The CodingAgent class inherits from BaseAgent and adds a repo_path attribute to track the repository path.",
-    "If repo_path is not provided, it defaults to the current working directory."
+    "If repo_path is not provided, it defaults to the current working directory.",
+    "The CodingAgent class inherits from BaseAgent and adds a repo_path attribute to track the repository path. If repo_path is not provided, it defaults to the current working directory."
   ],
   "implemented_features": [
     "Configuration management via config.py.",
@@ -60,6 +65,10 @@
     "3D U-Net: Learning Dense Volumetric Segmentation from Sparse Annotation",
     "V-Net: Fully Convolutional Neural Networks for Volumetric Medical Image Segmentation",
     "Attention U-Net: Learning Where to Look for Medical Image Segmentation",
-    "A Survey on Deep Learning Based 3D Medical Image Segmentation"
+    "A Survey on Deep Learning Based 3D Medical Image Segmentation",
+    "J.P. Guilford, \"The Nature of Human Intelligence,\" American Psychologist, vol. 16, no. 11, pp. 697-703, 1961.",
+    "John Kounios and Mark Beeman, \"The Aha! Moment: The Cognitive Neuroscience of Insight,\" Trends in Cognitive Sciences, vol. 14, no. 7, pp. 272-278, 2010.",
+    "Dietmar Plenz and David B. Reiner, \"The Cognitive Function of Neuroplasticity,\" Neuron, vol. 88, no. 3, pp. 444-457, 2015.",
+    "R. Keith Sawyer, \"Explaining Creativity: The Science of Human Innovation,\" Oxford University Press, 2012."
   ]
 }

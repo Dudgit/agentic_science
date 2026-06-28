@@ -91,3 +91,11 @@ def build_codebase_context(root_dir, target_extensions=None, exclude_dirs=None):
                 context_str += "\n```\n"
                 
     return context_str
+
+def update_summary_md(file_path: str, new_markdown_content: str):
+    """Overwrites the global project summary with the latest state."""
+    try:
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(new_markdown_content)
+    except Exception as e:
+        print(f"Error saving summary markdown: {e}")
