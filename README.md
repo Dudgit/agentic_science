@@ -4,7 +4,8 @@ Note that this is just a ChatGPT generated placeholder, later needs to be modifi
 
 ## TODOS:
 - Designer agent for perfect coding.
-- Add internet search.
+- planner->agent->critiq->agent->response
+    - General Agent loop for all agents. I don't want to see as they explain everything about the question I ask.
 - Skills and other md.
 - Add other agents if needed.
 - Add time logging, for fund summary.

@@ -7,6 +7,7 @@ import chainlit as cl
 from agents.base import BaseAgent
 from agents.coding import CodingAgent
 from backends.vllm_backend import VLLMBackend
+from agents.researcher import ResearcherAgent
 
 from utils.io import load_json, update_json, update_summary_md
 from utils.parser import parse_json_response
@@ -60,7 +61,29 @@ agents = {
         prompt_dir="prompts/critic",
         memory_file=os.path.join(PATHS["projects_dir"], "memory_critic.json")
     ),
+    "researcher": ResearcherAgent(
+        name="researcher",
+        backend=VLLMBackend(base_url=MODELS["critic"]["base_url"], model=MODELS["critic"]["model_name"]),
+        prompt_dir="prompts/researcher",
+        memory_file=os.path.join(PATHS["projects_dir"], "memory_researcher.json")
+    )
 }
+
+# ---------------- INTERFACE CALLBACKS ----------------
+
+@cl.action_callback("switch_agent")
+async def on_switch_agent(action: cl.Action):
+    # Pull the string out of the payload dictionary
+    new_agent = action.payload["agent"]
+    
+    cl.user_session.set("agent_name", new_agent)
+    
+    await cl.Message(
+        content=f"✅ Switched to **{new_agent.capitalize()}**! Ready for your prompt."
+    ).send()
+
+
+
 
 # ---------------- SUMMARIZER LOGIC ----------------
 def summarize_interaction(summarizer_agent, agent_name, user_input, agent_response):
@@ -95,7 +118,6 @@ Only include information worth remembering. Do not include trivial chat.
         update_json(PROJECT_MEMORY, summary_json)
         
         # 3. Create a Markdown version for the 'Clipboard'
-        # We format the JSON into a clean markdown string so the Coder can read it easily
         markdown_content = "# Current Project State\n\n"
         for key, items in summary_json.items():
             if items:
@@ -118,22 +140,25 @@ async def on_chat_start():
     # Save active agent for this chat session
     cl.user_session.set("agent_name", DEFAULT_AGENT)
 
+    # Dynamically generate a clickable button for every agent
+    agent_buttons = [
+        # Notice payload={"agent": name} instead of payload=name
+        cl.Action(name="switch_agent", payload={"agent": name}, label=name.capitalize())
+        for name in agents.keys()
+    ]
+
     await cl.Message(
         content=f"""
-# 🧪 AgentFlow AI Orchestrator
+# AgentFlow
 
-Welcome to your Medical Physics Research Assistant!
+Welcome!
 
-**Current active agent:** `{DEFAULT_AGENT}`
+Current agent: **{DEFAULT_AGENT}**
 
-### Available Agents:
-- **coding** (Has full repository X-Ray vision)
-- **qa** (General questions)
-- **writing** (Drafting papers)
-- **critic** (Mathematical & logic review)
-
-*To switch agents, type:* `/agent [name]` (e.g., `/agent critic`)
-"""
+Click a button below to switch your active agent. 
+*(If this menu scrolls out of view, just type `/menu` to bring it back!)*
+""",
+        actions=agent_buttons
     ).send()
 
 @cl.on_message
@@ -141,50 +166,45 @@ async def on_message(message: cl.Message):
     user_input = message.content.strip()
 
     # -------------------------------------------
-    # Switch agent command
+    # Menu trigger
     # -------------------------------------------
-    if user_input.startswith("/agent"):
-        parts = user_input.split()
-        if len(parts) != 2:
-            await cl.Message(content="Usage:\n\n`/agent coding`").send()
-            return
-
-        new_agent = parts[1].lower()
-        if new_agent not in agents:
-            await cl.Message(content=f"Unknown agent **{new_agent}**").send()
-            return
-
-        cl.user_session.set("agent_name", new_agent)
-        await cl.Message(content=f"✅ Successfully switched to **{new_agent}**!").send()
+    if user_input.lower() == "/menu":
+        agent_buttons = [
+            # Same here: payload={"agent": k}
+            cl.Action(name="switch_agent", payload={"agent": k}, label=k.capitalize())
+            for k in agents.keys()
+        ]
+        await cl.Message(
+            content="👇 Click a button to switch your active agent:", 
+            actions=agent_buttons
+        ).send()
         return
 
     # -------------------------------------------
-    # Process Message
+    # Current agent processing
     # -------------------------------------------
     agent_name = cl.user_session.get("agent_name", DEFAULT_AGENT)
     current_agent = agents[agent_name]
 
-    # Display a loading spinner in the UI
-    thinking = cl.Message(content=f"🤔 `{agent_name}` is thinking...")
+    # -------------------------------------------
+    # Async Inference Execution
+    # -------------------------------------------
+    thinking = cl.Message(content="🤔 Thinking...")
     await thinking.send()
 
     try:
-        # CRITICAL: We wrap the synchronous .run() call in cl.make_async 
-        # so it doesn't freeze the Chainlit web server!
-        async_run = cl.make_async(current_agent.run)
-        response = await async_run(user_input)
+        # Run the synchronous backend pipeline inside a non-blocking background thread
+        response = await cl.make_async(current_agent.run)(user_input)
 
-        # Update the UI message with the final response
+        # Update placeholder message with the actual formatted markdown output
         thinking.content = response
         await thinking.update()
 
         # ---------------------------------------
-        # Background Summarization
+        # Background Memory Update
         # ---------------------------------------
-        # We run the summarizer asynchronously so the user doesn't 
-        # have to wait for the JSON parsing to finish before typing again.
-        async_summarize = cl.make_async(summarize_interaction)
-        await async_summarize(
+        # Spin up the summarizer without freezing the UI line
+        await cl.make_async(summarize_interaction)(
             summarizer_agent=agents["summarizer"],
             agent_name=agent_name,
             user_input=user_input,
@@ -192,11 +212,11 @@ async def on_message(message: cl.Message):
         )
 
     except Exception as e:
-        thinking.content = f"❌ **Error running {agent_name}:**\n\n```text\n{e}\n```"
+        thinking.content = f"❌ Error executing engine:\n\n```text\n{e}\n```"
         await thinking.update()
 
     finally:
-        # Note: torch.cuda.empty_cache() only works if the PyTorch model 
-        # is loaded in THIS specific Python script. Since your models are 
-        # hosted on vLLM API servers, this does nothing, but gc.collect() is good!
+        # VRAM Hygiene loop
         gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()

@@ -9,5 +9,6 @@ class QAAgent(BaseAgent):
         super().__init__(
             name="qa",
             model_config=MODELS["qa"],
-            project_name=project_name
+            project_name=project_name,
+            allow_search=True
         )

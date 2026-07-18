@@ -13,7 +13,8 @@ class CodingAgent(BaseAgent):
             name=name,
             backend=backend,
             prompt_dir=prompt_dir,
-            memory_file=memory_file
+            memory_file=memory_file,
+            allow_search=True
         )
         
         # 3. Store the new custom variable for this specific agent

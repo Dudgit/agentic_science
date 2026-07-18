@@ -30,7 +30,7 @@ MODELS = {
         "base_url": "http://ollama.default:11434/v1"
     },
 
-    "brainstorm": {
+    "researcher": {
         "model_name": "nemotron-3-super:120b",
         "base_url": "http://ollama.default:11434/v1"
     }
