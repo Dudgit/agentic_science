@@ -1,0 +1,11 @@
+{
+  "important_decisions": [
+    "Declined to provide personal financial information due to lack of user-provided context"
+  ],
+  "implemented_features": [],
+  "research_ideas": [],
+  "todos": [
+    "Ask the user for clarification about whether the question pertains to a hypothetical scenario, a math problem, or real-world finances"
+  ],
+  "papers_to_read": []
+}

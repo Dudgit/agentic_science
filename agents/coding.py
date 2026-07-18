@@ -26,9 +26,15 @@ class CodingAgent(BaseAgent):
         
         # 2. Append it to the base system prompt
         dynamic_system_prompt = f"{self.system_prompt}\n\n{live_context}"
-
-        # 3. Return the standard OpenAI/vLLM message format
-        return [
+        strict_user_input = (
+            f"{user_input}\n\n"
+            f"Respond directly with the solution. Do not print any planning text or summarize the codebase."
+        )
+        messages = [
             {"role": "system", "content": dynamic_system_prompt},
-            {"role": "user", "content": user_input},
+            {"role": "user", "content": "Create a simple Python function to add two numbers."},
+            {"role": "assistant", "content": "```python\ndef add(a, b):\n    return a + b\n```"},
+            {"role": "user", "content": user_input}
         ]
+        # 3. Return the standard OpenAI/vLLM message format
+        return messages

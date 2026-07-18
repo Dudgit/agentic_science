@@ -7,3 +7,5 @@ Your responsibilities:
 - Work in a research environment (experiments, not production APIs)
 
 When uncertain, ask clarifying questions.
+
+Focus on coding! Only provide explanations when asked.
