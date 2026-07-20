@@ -3,13 +3,14 @@ import gc
 import json
 import torch
 import chainlit as cl
+import re
 
 from agents.base import BaseAgent
 from agents.coding import CodingAgent
 from backends.vllm_backend import VLLMBackend
 from agents.researcher import ResearcherAgent
 
-from utils.io import load_json, update_json, update_summary_md
+from utils.io import load_json, update_json, update_summary_md, strip_thoughts
 from utils.parser import parse_json_response
 from config import PATHS, CURRENT_MODEL, MODELS
 
@@ -17,9 +18,12 @@ from config import PATHS, CURRENT_MODEL, MODELS
 DEFAULT_AGENT = "coding"
 PROJECT_MEMORY = os.path.join(PATHS["projects_dir"], "project_memory.json")
 SUMMARY_MD = os.path.join(PATHS["projects_dir"], "summarized.md")
-REPO_PATH = "/home/bdudas/agentFlow"  # Path for the CodingAgent X-Ray vision
+REPO_PATH = "/home/bdudas/agentFlow/agentic_science/sample_project"  # Path for the CodingAgent X-Ray vision
 
 # ---------------- AGENTS ----------------
+
+
+
 agents = {
     "qa": BaseAgent(
         name="qa",
@@ -165,12 +169,9 @@ Click a button below to switch your active agent.
 async def on_message(message: cl.Message):
     user_input = message.content.strip()
 
-    # -------------------------------------------
-    # Menu trigger
-    # -------------------------------------------
+    # Handle the menu command override
     if user_input.lower() == "/menu":
         agent_buttons = [
-            # Same here: payload={"agent": k}
             cl.Action(name="switch_agent", payload={"agent": k}, label=k.capitalize())
             for k in agents.keys()
         ]
@@ -180,43 +181,131 @@ async def on_message(message: cl.Message):
         ).send()
         return
 
-    # -------------------------------------------
-    # Current agent processing
-    # -------------------------------------------
+    # ---------------------------------------------------------
+    # IDENTIFY TARGET AGENTS
+    # ---------------------------------------------------------
     agent_name = cl.user_session.get("agent_name", DEFAULT_AGENT)
-    current_agent = agents[agent_name]
+    chosen_agent = agents[agent_name]
+    
+    # Fallback to QA agent for planning if an explicit planner agent isn't configured
+    planner_agent = agents.get("planner", agents["qa"])
+    critic_agent = agents["critic"]
 
-    # -------------------------------------------
-    # Async Inference Execution
-    # -------------------------------------------
-    thinking = cl.Message(content="🤔 Thinking...")
-    await thinking.send()
+    # Initialize a clean, dynamic status tracker in the UI
+    status_msg = cl.Message(content="🤖 Initializing Agentic Workflow Assembly Line...")
+    await status_msg.send()
 
     try:
-        # Run the synchronous backend pipeline inside a non-blocking background thread
-        response = await cl.make_async(current_agent.run)(user_input)
+        # ---------------------------------------------------------
+        # STEP 1: Planner
+        # ---------------------------------------------------------
+        status_msg.content = " **Phase 1: Architecting System Plan (Planner)...**"
+        await status_msg.update()
+        
+        planner_prompt = (
+            f"Break down the user's request into a concrete engineering plan or structural outline.\n"
+            f"If you need external documentation, libraries, or recent data to complete this plan accurately, "
+            f"you MUST start your response with: SEARCH: [your search query].\n\n"
+            f"User Request: {user_input}"
+        )
+        plan_output = await cl.make_async(planner_agent.run)(planner_prompt)
 
-        # Update placeholder message with the actual formatted markdown output
-        thinking.content = response
-        await thinking.update()
+        # ---------------------------------------------------------
+        # STEP 2: Researcher (If Needed)
+        # ---------------------------------------------------------
+        research_context = ""
+        if "SEARCH:" in plan_output:
+            status_msg.content = "🌐 **Phase 2: Executing Autonomous Live Web Search (Researcher)...**"
+            await status_msg.update()
+            
+            # Extract the target search term from the planner's output
+            search_query = plan_output.split("SEARCH:")[1].strip()
+            
+            # Use our DuckDuckGo lookup utility
+            from utils.web import search_internet
+            web_raw = search_internet(search_query)
+            
+            # Ask the planner to synthesize the new internet findings into the final system plan
+            status_msg.content = "📊 **Phase 2b: Integrating Web Findings into System Blueprint...**"
+            await status_msg.update()
+            
+            plan_output = await cl.make_async(planner_agent.run)(
+                f"We performed a search for '{search_query}'. Here are the findings:\n\n{web_raw}\n\n"
+                f"Rewrite your structural engineering blueprint incorporating these new constraints and facts."
+            )
 
-        # ---------------------------------------
-        # Background Memory Update
-        # ---------------------------------------
-        # Spin up the summarizer without freezing the UI line
+        # ---------------------------------------------------------
+        # STEP 3: Chosen Agent (Coding, Writing, or QA)
+        # ---------------------------------------------------------
+        status_msg.content = f"⚙️ **Phase 3: Generating Base Content ({agent_name.capitalize()} Agent)...**"
+        await status_msg.update()
+        
+        # We pass the pristine blueprint to your selected execution agent
+        execution_prompt = (
+            f"### SYSTEM INSTRUCTION ###\n"
+            f"### BLUEPRINT TO IMPLEMENT ###\n{plan_output}"
+        )
+        raw_delivery = await cl.make_async(chosen_agent.run)(execution_prompt)
+        initial_delivery = strip_thoughts(raw_delivery)
+
+        # ---------------------------------------------------------
+        # STEP 4: Critic (Adversarial Review)
+        # ---------------------------------------------------------
+        status_msg.content = "🔍 **Phase 4: Evaluating Output Stability & Quality (Critic)...**"
+        await status_msg.update()
+        
+        critic_prompt = (
+            f"### TARGET REQUIREMENT ###\n{user_input}\n\n"
+            f"### ASSIGNED BLUEPRINT ###\n{plan_output}\n\n"
+            f"### RENDERED DELIVERY ###\n{initial_delivery}"
+        )
+        critique = await cl.make_async(critic_agent.run)(critic_prompt)
+
+        # ---------------------------------------------------------
+        # STEP 5: Final Fix (Chosen Agent Self-Correction)
+        # ---------------------------------------------------------
+        status_msg.content = f"🛠️ **Phase 5: Executing Final Corrections ({agent_name.capitalize()} Agent)...**"
+        await status_msg.update()
+        
+        correction_prompt = (
+            f"### SYSTEM INSTRUCTION ###\n"
+            f"### PREVIOUS RESPONSE ###\n{initial_delivery}\n\n"
+            f"### CRITIC FEEDBACK TO RESOLVE ###\n{critique}"
+        )
+        final_delivery = await cl.make_async(chosen_agent.run)(correction_prompt)
+
+        # ---------------------------------------------------------
+        # STEP 6: Final Render to UI
+        # ---------------------------------------------------------
+        # Present a clean, sectioned output for easy scanning
+        status_msg.content = (
+            f"## Final System Generation\n"
+            f"Executed using the **{agent_name.upper()}** pipeline branch.\n\n"
+            f"---\n"
+            f"### 📋 System Blueprint\n{plan_output}\n\n"
+            f"---\n"
+            f"### 🚀 Final Delivery\n{final_delivery}\n\n"
+            f"---\n"
+            f"### 🔍 Critic Evaluation Matrix\n{critique}"
+        )
+        await status_msg.update()
+
+        # ---------------------------------------------------------
+        # Global Two-Tier Memory Update
+        # ---------------------------------------------------------
         await cl.make_async(summarize_interaction)(
             summarizer_agent=agents["summarizer"],
             agent_name=agent_name,
             user_input=user_input,
-            agent_response=response
+            agent_response=final_delivery
         )
 
     except Exception as e:
-        thinking.content = f"❌ Error executing engine:\n\n```text\n{e}\n```"
-        await thinking.update()
+        status_msg.content = f"❌ **Pipeline Assembly Halted due to Error**\n\n```text\n{e}\n```"
+        await status_msg.update()
 
     finally:
-        # VRAM Hygiene loop
+        # Prevent VRAM fragments from polluting future inference steps
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()

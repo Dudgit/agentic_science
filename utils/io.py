@@ -99,3 +99,16 @@ def update_summary_md(file_path: str, new_markdown_content: str):
             f.write(new_markdown_content)
     except Exception as e:
         print(f"Error saving summary markdown: {e}")
+
+import re
+
+def strip_thoughts(text: str) -> str:
+    """Removes the <think>...</think> blocks from the model's response."""
+    # re.DOTALL ensures the regex catches multi-line thinking blocks
+    cleaned_text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+    
+    # Optional: If the model uses Markdown headers for thoughts, you can strip those too
+    cleaned_text = re.sub(r'### THOUGHTS? ###.*?###', '###', cleaned_text, flags=re.DOTALL | re.IGNORECASE)
+    cleaned_text = re.sub(r'<think>.*?</think>\s*', '', text, flags=re.DOTALL | re.IGNORECASE)
+    
+    return cleaned_text.strip()

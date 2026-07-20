@@ -18,7 +18,6 @@ Fields:
 - implementation_notes
 
 Rules:
-
 - Ignore small talk.
 - Ignore temporary conversational details.
 - Only extract information that may remain useful weeks later.

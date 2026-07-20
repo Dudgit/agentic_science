@@ -34,7 +34,7 @@ class BaseAgent:
     def load_prompt(self, prompt_dir):
         if not prompt_dir:
             return ""
-
+        print('Loading system prompt from:', prompt_dir)
         return load_text_files(prompt_dir)
 
     # ---------------- MEMORY ----------------
