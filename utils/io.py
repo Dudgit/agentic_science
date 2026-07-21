@@ -105,6 +105,8 @@ import re
 def strip_thoughts(text: str) -> str:
     """Removes the <think>...</think> blocks from the model's response."""
     # re.DOTALL ensures the regex catches multi-line thinking blocks
+    if "### FINAL ANSWER ###" in text:
+        return text.split("### FINAL ANSWER ###")[-1].strip()
     cleaned_text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
     
     # Optional: If the model uses Markdown headers for thoughts, you can strip those too
@@ -112,3 +114,34 @@ def strip_thoughts(text: str) -> str:
     cleaned_text = re.sub(r'<think>.*?</think>\s*', '', text, flags=re.DOTALL | re.IGNORECASE)
     
     return cleaned_text.strip()
+
+
+def reset_all_memories():
+    """Wipes project memory, summarized.md, and all agent memory files on disk and in-memory."""
+    # 1. Reset Project Memory JSON
+    empty_project_mem = {
+        "important_decisions": [],
+        "implemented_features": [],
+        "research_ideas": [],
+        "todos": [],
+        "papers_to_read": []
+    }
+    os.makedirs(os.path.dirname(PROJECT_MEMORY), exist_ok=True)
+    with open(PROJECT_MEMORY, "w", encoding="utf-8") as f:
+        json.dump(empty_project_mem, f, indent=4)
+
+    # 2. Reset summarized.md
+    with open(SUMMARY_MD, "w", encoding="utf-8") as f:
+        f.write("# Current Project State\n\n*Memory reset to clean state.*\n")
+
+    # 3. Reset individual agent memory files & active instances
+    for name, agent in agents.items():
+        agent.history = []
+        agent.memory = {"logs": []}
+        
+        if hasattr(agent, "memory_file") and agent.memory_file:
+            os.makedirs(os.path.dirname(agent.memory_file), exist_ok=True)
+            with open(agent.memory_file, "w", encoding="utf-8") as f:
+                json.dump({"logs": []}, f, indent=4)
+
+    print("[System] All project and agent memory files reset to clean state.")

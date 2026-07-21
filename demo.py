@@ -10,7 +10,7 @@ from agents.coding import CodingAgent
 from backends.vllm_backend import VLLMBackend
 from agents.researcher import ResearcherAgent
 
-from utils.io import load_json, update_json, update_summary_md, strip_thoughts
+from utils.io import load_json, update_json, update_summary_md, strip_thoughts, reset_all_memories
 from utils.parser import parse_json_response
 from config import PATHS, CURRENT_MODEL, MODELS
 
@@ -165,6 +165,15 @@ Click a button below to switch your active agent.
         actions=agent_buttons
     ).send()
 
+
+
+@cl.action_callback("reset_memory_action")
+async def on_reset_memory(action: cl.Action):
+    reset_all_memories()
+    await cl.Message(
+        content="🧹 **All project memory files, agent logs, and context history have been wiped clean!**"
+    ).send()
+
 @cl.on_message
 async def on_message(message: cl.Message):
     user_input = message.content.strip()
@@ -243,6 +252,7 @@ async def on_message(message: cl.Message):
         # We pass the pristine blueprint to your selected execution agent
         execution_prompt = (
             f"### SYSTEM INSTRUCTION ###\n"
+            f"Implement the following blueprint exactly based on your system persona instructions.\n\n"
             f"### BLUEPRINT TO IMPLEMENT ###\n{plan_output}"
         )
         raw_delivery = await cl.make_async(chosen_agent.run)(execution_prompt)
@@ -268,8 +278,8 @@ async def on_message(message: cl.Message):
         await status_msg.update()
         
         correction_prompt = (
-            f"### SYSTEM INSTRUCTION ###\n"
-            f"### PREVIOUS RESPONSE ###\n{initial_delivery}\n\n"
+            f"Review the Critic's feedback. Rewrite your previous output to address all identified flaws based on your system persona instructions.\n\n"
+            f"### PREVIOUS OUTPUT ###\n{initial_delivery}\n\n"
             f"### CRITIC FEEDBACK TO RESOLVE ###\n{critique}"
         )
         final_delivery = await cl.make_async(chosen_agent.run)(correction_prompt)
