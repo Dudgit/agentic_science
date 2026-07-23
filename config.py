@@ -24,7 +24,7 @@ MODELS = {
     "critic": {
         "model": "gpt-oss:120b",
         "base_url": "http://ollama.default:11434/v1",
-        "max_tokens": 4096
+        "max_tokens": 2048
     },
 
     "summarizer": {
@@ -41,4 +41,5 @@ MODELS = {
 PATHS = {
     "prompt_dir": "prompts",
     "projects_dir": "/v/hqos8c/agentic_workflow/agentic_science/projects"
+    
 }

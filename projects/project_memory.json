@@ -1,14 +1,1 @@
-{
-  "important_decisions": [
-    "Declined to provide personal financial information due to lack of user-provided context",
-    "Avoid publishing potentially outdated faculty lists due to lack of real\u2011time data access.",
-    "Explicitly state the knowledge cutoff and recommend checking the official ELTE Department of Theoretical Physics website for current information."
-  ],
-  "implemented_features": [],
-  "research_ideas": [],
-  "todos": [
-    "Ask the user for clarification about whether the question pertains to a hypothetical scenario, a math problem, or real-world finances",
-    "In future responses, include a disclaimer about the dynamic nature of faculty rosters."
-  ],
-  "papers_to_read": []
-}
+{}

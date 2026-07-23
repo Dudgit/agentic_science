@@ -105,13 +105,16 @@ import re
 def strip_thoughts(text: str) -> str:
     """Removes the <think>...</think> blocks from the model's response."""
     # re.DOTALL ensures the regex catches multi-line thinking blocks
-    if "### FINAL ANSWER ###" in text:
-        return text.split("### FINAL ANSWER ###")[-1].strip()
-    cleaned_text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+    final_answer_match = re.split(r'#{0,3}\s*\*?\*?FINAL ANSWER\*?\*?:?#{0,3}\s*', text, flags=re.IGNORECASE)
+    if len(final_answer_match) > 1:
+        return final_answer_match[-1].strip()
+
+    if "</think>" in text.lower():
+        # Case-insensitive split on </think>
+        text = re.split(r'</think>', text, flags=re.IGNORECASE)[-1]
     
-    # Optional: If the model uses Markdown headers for thoughts, you can strip those too
-    cleaned_text = re.sub(r'### THOUGHTS? ###.*?###', '###', cleaned_text, flags=re.DOTALL | re.IGNORECASE)
     cleaned_text = re.sub(r'<think>.*?</think>\s*', '', text, flags=re.DOTALL | re.IGNORECASE)
+    cleaned_text = re.sub(r'### THOUGHTS? ###.*?###', '###', cleaned_text, flags=re.DOTALL | re.IGNORECASE)
     
     return cleaned_text.strip()
 

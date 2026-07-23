@@ -19,7 +19,7 @@ DEFAULT_AGENT = "coding"
 PROJECT_MEMORY = os.path.join(PATHS["projects_dir"], "project_memory.json")
 SUMMARY_MD = os.path.join(PATHS["projects_dir"], "summarized.md")
 REPO_PATH = "/home/bdudas/agentFlow/agentic_science/sample_project"  # Path for the CodingAgent X-Ray vision
-
+ENABLE_CIRITC = False
 # ---------------- AGENTS ----------------
 
 
@@ -174,17 +174,34 @@ async def on_message(message: cl.Message):
     user_input = message.content.strip()
 
     # Handle the menu command override
-    if user_input.lower() == "/menu":
-        agent_buttons = [
-            cl.Action(name="switch_agent", payload={"agent": k}, label=k.capitalize())
-            for k in agents.keys()
-        ]
+    if user_input.lower().startswith("/agent"):
+        parts = user_input.split()
+        if len(parts) > 1:
+            target_agent = parts[1].lower()
+            if target_agent in agents:
+                cl.user_session.set("agent_name", target_agent)
+                await cl.Message(
+                    content=f"🤖 Switched active agent to **{target_agent.upper()}**."
+                ).send()
+                return
+            else:
+                avail = ", ".join([f"`{k}`" for k in agents.keys()])
+                await cl.Message(
+                    content=f"⚠️ Agent `{target_agent}` not found. Available: {avail}"
+                ).send()
+                return
+        else:
+            avail = ", ".join([f"`{k}`" for k in agents.keys()])
+            await cl.Message(
+                content=f"ℹ️ Usage: `/agent <name>`. Available: {avail}"
+            ).send()
+            return
+    if user_input.lower() == "/reset":
+        reset_all_memories()
         await cl.Message(
-            content="👇 Click a button to switch your active agent:", 
-            actions=agent_buttons
+            content="🧹 **All project memory files, agent logs, and context history have been wiped clean!**"
         ).send()
         return
-
     # ---------------------------------------------------------
     # IDENTIFY TARGET AGENTS
     # ---------------------------------------------------------
@@ -247,7 +264,9 @@ async def on_message(message: cl.Message):
         # We pass the pristine blueprint to your selected execution agent
         execution_prompt = (
             f"### SYSTEM INSTRUCTION ###\n"
-            f"Implement the following blueprint exactly based on your system persona instructions.\n\n"
+            f"You have been provided a pre-calculated, peer-reviewed architectural blueprint. "
+            f"Do NOT use `<think>` blocks. Do NOT re-analyze the problem. "
+            f"Immediately begin your response with `### FINAL ANSWER ###` and generate the complete, comprehensive delivery.\n\n"
             f"### BLUEPRINT TO IMPLEMENT ###\n{plan_output}"
         )
         raw_delivery = await cl.make_async(chosen_agent.run)(execution_prompt)
@@ -256,28 +275,34 @@ async def on_message(message: cl.Message):
         # ---------------------------------------------------------
         # STEP 4: Critic (Adversarial Review)
         # ---------------------------------------------------------
-        status_msg.content = "🔍 **Phase 4: Evaluating Output Stability & Quality (Critic)...**"
-        await status_msg.update()
-        
-        critic_prompt = (
-            f"### TARGET REQUIREMENT ###\n{user_input}\n\n"
-            f"### ASSIGNED BLUEPRINT ###\n{plan_output}\n\n"
-            f"### RENDERED DELIVERY ###\n{initial_delivery}"
-        )
-        critique = await cl.make_async(critic_agent.run)(critic_prompt)
+        if ENABLE_CIRITC:
+            status_msg.content = "🔍 **Running Critic Evaluation...**"
+            await status_msg.update()
+            
+            critic_prompt = (
+                f"Analyze the implementation against the requirement. Output ONLY bullet points of errors.\n\n"
+                f"### REQUIREMENT ###\n{user_input}\n\n### IMPLEMENTATION ###\n{initial_delivery}")
+            raw_critique = await cl.make_async(critic_agent.run)(critic_prompt)
+            critique = strip_thoughts(raw_critique)
+
+            status_msg.content = f"🛠️ **Executing Final Corrections ({agent_name.capitalize()} Agent)...**"
+            await status_msg.update()
+            
+            correction_prompt = (
+                f"Rewrite your previous output to address all identified flaws based on your system persona instructions.\n\n"
+                f"### PREVIOUS OUTPUT ###\n{initial_delivery}\n\n### CRITIC FEEDBACK ###\n{critique}"
+                f"Immediately begin your response with `### FINAL ANSWER ###` and generate the complete, comprehensive delivery.\n\n"
+                )
+            raw_final = await cl.make_async(chosen_agent.run)(correction_prompt)
+            final_delivery = strip_thoughts(raw_final)
 
         # ---------------------------------------------------------
         # STEP 5: Final Fix (Chosen Agent Self-Correction)
         # ---------------------------------------------------------
-        status_msg.content = f"🛠️ **Phase 5: Executing Final Corrections ({agent_name.capitalize()} Agent)...**"
-        await status_msg.update()
+        else:
+            critique = "*- Critic evaluation bypassed (ENABLE_CRITIC = False) -*"
+            final_delivery = initial_delivery
         
-        correction_prompt = (
-            f"Review the Critic's feedback. Rewrite your previous output to address all identified flaws based on your system persona instructions.\n\n"
-            f"### PREVIOUS OUTPUT ###\n{initial_delivery}\n\n"
-            f"### CRITIC FEEDBACK TO RESOLVE ###\n{critique}"
-        )
-        final_delivery = await cl.make_async(chosen_agent.run)(correction_prompt)
 
         # ---------------------------------------------------------
         # STEP 6: Final Render to UI
