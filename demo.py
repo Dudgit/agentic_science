@@ -27,19 +27,14 @@ REPO_PATH = "/home/bdudas/agentFlow/agentic_science/sample_project"  # Path for 
 agents = {
     "qa": BaseAgent(
         name="qa",
-        backend=VLLMBackend(base_url=MODELS["qa"]["base_url"], model=MODELS["qa"]["model_name"]),
+        backend=VLLMBackend(**dict(MODELS["qa"])),
         prompt_dir="prompts/qa",
         memory_file=os.path.join(PATHS["projects_dir"], "memory_qa.json")
     ),
 
     "coding": CodingAgent(
         name="coding",
-        backend=VLLMBackend(
-            base_url=MODELS["coding"]["base_url"], 
-            model=MODELS["coding"]["model_name"],
-            max_tokens=MODELS["coding"].get("max_tokens", 2048),
-            temperature=MODELS["coding"].get("temperature", 0.0)
-        ),
+        backend=VLLMBackend(**dict(MODELS["coding"])),
         prompt_dir="prompts/coding",
         memory_file=os.path.join(PATHS["projects_dir"], "memory_coding.json"),
         repo_path=REPO_PATH  # Required for your custom coding agent
@@ -47,27 +42,27 @@ agents = {
 
     "writing": BaseAgent(
         name="writing",
-        backend=VLLMBackend(base_url=MODELS["writing"]["base_url"], model=MODELS["writing"]["model_name"]),
+        backend=VLLMBackend(**dict(MODELS["writing"])),
         prompt_dir="prompts/writing",
         memory_file=os.path.join(PATHS["projects_dir"], "memory_writing.json")
     ),
 
     "summarizer": BaseAgent(
         name="summarizer",
-        backend=VLLMBackend(base_url=MODELS["summarizer"]["base_url"], model=MODELS["summarizer"]["model_name"]),
+        backend=VLLMBackend(**dict(MODELS["summarizer"])),
         prompt_dir="prompts/summarizer",
         memory_file=os.path.join(PATHS["projects_dir"], "memory_summarizer.json")
     ),
 
     "critic": BaseAgent(
         name="critic",
-        backend=VLLMBackend(base_url=MODELS["critic"]["base_url"], model=MODELS["critic"]["model_name"]),
+        backend=VLLMBackend(**dict(MODELS["critic"])),
         prompt_dir="prompts/critic",
         memory_file=os.path.join(PATHS["projects_dir"], "memory_critic.json")
     ),
     "researcher": ResearcherAgent(
         name="researcher",
-        backend=VLLMBackend(base_url=MODELS["critic"]["base_url"], model=MODELS["critic"]["model_name"]),
+        backend=VLLMBackend(**dict(MODELS["researcher"])),
         prompt_dir="prompts/researcher",
         memory_file=os.path.join(PATHS["projects_dir"], "memory_researcher.json")
     )
