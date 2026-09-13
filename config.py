@@ -40,6 +40,6 @@ MODELS = {
 
 PATHS = {
     "prompt_dir": "prompts",
-    "projects_dir": "/v/hqos8c/agentic_workflow/agentic_science/projects"
+    "projects_dir": "/v/ijziqt/agentic_science/projects"
     
 }
