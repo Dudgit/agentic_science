@@ -218,7 +218,30 @@ async def on_message(message: cl.Message):
         # ---------------------------------------------------------
         # STEP 1: Planner
         # ---------------------------------------------------------
-        status_msg.content = " **Phase 1: Architecting System Plan (Planner)...**"
+        if agent_name == "qa":
+            status_msg.content = "🧠 **Thinking and generating theoretical response (QA Agent)...**"
+            await status_msg.update()
+            
+            # QA gets the direct user input, no planner, no execution strings.
+            raw_response = await cl.make_async(chosen_agent.run)(user_input)
+            clean_response = strip_thoughts(raw_response)
+
+            status_msg.content = f"## Scientific Assistant Response\n\n{clean_response}"
+            await status_msg.update()
+
+            # Background summarization
+            await cl.make_async(summarize_interaction)(
+                agents["summarizer"], agent_name, user_input, clean_response
+            )
+            return  # <-- EXIT HERE. Do not run the rest of the pipeline!
+
+        # =========================================================
+        # PATH B: CODING AGENT (Planner -> Coder Assembly Line)
+        # =========================================================
+        # ---------------------------------------------------------
+        # STEP 1: Planner
+        # ---------------------------------------------------------
+        status_msg.content = "🏗️ **Phase 1: Architecting System Plan (Planner)...**"
         await status_msg.update()
         
         planner_prompt = (
@@ -227,51 +250,49 @@ async def on_message(message: cl.Message):
             f"you MUST start your response with: SEARCH: [your search query].\n\n"
             f"User Request: {user_input}"
         )
-        plan_output = await cl.make_async(planner_agent.run)(planner_prompt)
+        raw_plan = await cl.make_async(planner_agent.run)(planner_prompt)
+        plan_output = strip_thoughts(raw_plan)
 
         # ---------------------------------------------------------
-        # STEP 2: Researcher (If Needed)
+        # STEP 2: Researcher (Web Search)
         # ---------------------------------------------------------
-        research_context = ""
         if "SEARCH:" in plan_output:
-            status_msg.content = "🌐 **Phase 2: Executing Autonomous Live Web Search (Researcher)...**"
+            status_msg.content = "🌐 **Phase 2: Executing Autonomous Live Web Search...**"
             await status_msg.update()
             
-            # Extract the target search term from the planner's output
             search_query = plan_output.split("SEARCH:")[1].strip()
-            
-            # Use our DuckDuckGo lookup utility
             from utils.web import search_internet
             web_raw = search_internet(search_query)
             
-            # Ask the planner to synthesize the new internet findings into the final system plan
             status_msg.content = "📊 **Phase 2b: Integrating Web Findings into System Blueprint...**"
             await status_msg.update()
             
-            plan_output = await cl.make_async(planner_agent.run)(
+            raw_plan = await cl.make_async(planner_agent.run)(
                 f"We performed a search for '{search_query}'. Here are the findings:\n\n{web_raw}\n\n"
                 f"Rewrite your structural engineering blueprint incorporating these new constraints and facts."
             )
+            plan_output = strip_thoughts(raw_plan)
 
         # ---------------------------------------------------------
-        # STEP 3: Chosen Agent (Coding, Writing, or QA)
+        # STEP 3: Execution (Coding Agent)
         # ---------------------------------------------------------
-        status_msg.content = f"⚙️ **Phase 3: Generating Base Content ({agent_name.capitalize()} Agent)...**"
+        status_msg.content = f"⚙️ **Phase 3: Generating Code ({agent_name.capitalize()} Agent)...**"
         await status_msg.update()
         
-        # We pass the pristine blueprint to your selected execution agent
+        # Here we enforce the strict "NO THINKING, ONLY FINAL ANSWER" rule, 
+        # but it ONLY applies to the Coding agent now!
         execution_prompt = (
             f"### SYSTEM INSTRUCTION ###\n"
-            f"You have been provided a pre-calculated, peer-reviewed architectural blueprint. "
+            f"You have been provided a pre-calculated architectural blueprint. "
             f"Do NOT use `<think>` blocks. Do NOT re-analyze the problem. "
-            f"Immediately begin your response with `### FINAL ANSWER ###` and generate the complete, comprehensive delivery.\n\n"
+            f"Immediately begin your response with `### FINAL ANSWER ###` and generate the complete code.\n\n"
             f"### BLUEPRINT TO IMPLEMENT ###\n{plan_output}"
         )
         raw_delivery = await cl.make_async(chosen_agent.run)(execution_prompt)
         initial_delivery = strip_thoughts(raw_delivery)
 
         # ---------------------------------------------------------
-        # STEP 4: Critic (Adversarial Review)
+        # STEP 4 & 5: Critic (If Enabled)
         # ---------------------------------------------------------
         if ENABLE_CIRITC:
             status_msg.content = "🔍 **Running Critic Evaluation...**"
@@ -287,25 +308,19 @@ async def on_message(message: cl.Message):
             await status_msg.update()
             
             correction_prompt = (
-                f"Rewrite your previous output to address all identified flaws based on your system persona instructions.\n\n"
-                f"### PREVIOUS OUTPUT ###\n{initial_delivery}\n\n### CRITIC FEEDBACK ###\n{critique}"
-                f"Immediately begin your response with `### FINAL ANSWER ###` and generate the complete, comprehensive delivery.\n\n"
-                )
+                f"Rewrite your previous output to address all identified flaws.\n\n"
+                f"### PREVIOUS OUTPUT ###\n{initial_delivery}\n\n### CRITIC FEEDBACK ###\n{critique}\n\n"
+                f"Immediately begin your response with `### FINAL ANSWER ###` and generate the corrected code."
+            )
             raw_final = await cl.make_async(chosen_agent.run)(correction_prompt)
             final_delivery = strip_thoughts(raw_final)
-
-        # ---------------------------------------------------------
-        # STEP 5: Final Fix (Chosen Agent Self-Correction)
-        # ---------------------------------------------------------
         else:
-            critique = "*- Critic evaluation bypassed (ENABLE_CRITIC = False) -*"
+            critique = "*- Critic evaluation bypassed -*"
             final_delivery = initial_delivery
-        
 
         # ---------------------------------------------------------
-        # STEP 6: Final Render to UI
+        # STEP 6: Final Render (Coding Path Only)
         # ---------------------------------------------------------
-        # Present a clean, sectioned output for easy scanning
         status_msg.content = (
             f"## Final System Generation\n"
             f"Executed using the **{agent_name.upper()}** pipeline branch.\n\n"
@@ -318,14 +333,8 @@ async def on_message(message: cl.Message):
         )
         await status_msg.update()
 
-        # ---------------------------------------------------------
-        # Global Two-Tier Memory Update
-        # ---------------------------------------------------------
         await cl.make_async(summarize_interaction)(
-            summarizer_agent=agents["summarizer"],
-            agent_name=agent_name,
-            user_input=user_input,
-            agent_response=final_delivery
+            agents["summarizer"], agent_name, user_input, final_delivery
         )
 
     except Exception as e:
