@@ -72,14 +72,12 @@ agents = {
 
 @cl.action_callback("switch_agent")
 async def on_switch_agent(action: cl.Action):
-    # Pull the string out of the payload dictionary
-    new_agent = action.payload["agent"]
+    # 1. Instantly set the variable (takes 1 microsecond)
+    target_agent = action.payload["agent"]
+    cl.user_session.set("agent_name", target_agent)
     
-    cl.user_session.set("agent_name", new_agent)
-    
-    await cl.Message(
-        content=f"✅ Switched to **{new_agent.capitalize()}**! Ready for your prompt."
-    ).send()
+    # 2. DO NOT send a heavy new message. Just remove the button to show it worked.
+    await action.remove()
 
 
 

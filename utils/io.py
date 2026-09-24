@@ -118,10 +118,18 @@ def strip_thoughts(text: str) -> str:
     
     return cleaned_text.strip()
 
-
+from config import PATHS
 def reset_all_memories():
     """Wipes project memory, summarized.md, and all agent memory files on disk and in-memory."""
-    # 1. Reset Project Memory JSON
+    
+    # Safely reference global variables to avoid NameErrors
+    global agents
+    
+    # 1. Build exact paths using your existing PATHS dictionary
+    project_memory_path = os.path.join(PATHS["projects_dir"], "project_memory.json")
+    summary_md_path = os.path.join(PATHS["projects_dir"], "summarized.md")
+
+    # 2. Reset Project Memory JSON
     empty_project_mem = {
         "important_decisions": [],
         "implemented_features": [],
@@ -129,22 +137,25 @@ def reset_all_memories():
         "todos": [],
         "papers_to_read": []
     }
-    os.makedirs(os.path.dirname(PROJECT_MEMORY), exist_ok=True)
-    with open(PROJECT_MEMORY, "w", encoding="utf-8") as f:
+    
+    os.makedirs(os.path.dirname(project_memory_path), exist_ok=True)
+    with open(project_memory_path, "w", encoding="utf-8") as f:
         json.dump(empty_project_mem, f, indent=4)
 
-    # 2. Reset summarized.md
-    with open(SUMMARY_MD, "w", encoding="utf-8") as f:
+    # 3. Reset summarized.md
+    with open(summary_md_path, "w", encoding="utf-8") as f:
         f.write("# Current Project State\n\n*Memory reset to clean state.*\n")
 
-    # 3. Reset individual agent memory files & active instances
+    # 4. Reset individual agent memory files & active instances
     for name, agent in agents.items():
+        # Clear the in-memory Python variables
         agent.history = []
         agent.memory = {"logs": []}
         
+        # Clear the physical JSON files on disk
         if hasattr(agent, "memory_file") and agent.memory_file:
             os.makedirs(os.path.dirname(agent.memory_file), exist_ok=True)
             with open(agent.memory_file, "w", encoding="utf-8") as f:
                 json.dump({"logs": []}, f, indent=4)
 
-    print("[System] All project and agent memory files reset to clean state.")
+    print("[System] All project and agent memory files reset to a clean state.")
