@@ -32,13 +32,13 @@ agents = {
         memory_file=os.path.join(PATHS["projects_dir"], "memory_qa.json")
     ),
 
-    "coding": CodingAgent(
-        name="coding",
-        backend=VLLMBackend(**dict(MODELS["coding"])),
-        prompt_dir="prompts/coding",
-        memory_file=os.path.join(PATHS["projects_dir"], "memory_coding.json"),
-        repo_path=REPO_PATH  # Required for your custom coding agent
-    ),
+    #"coding": CodingAgent(
+    #    name="coding",
+    #    backend=VLLMBackend(**dict(MODELS["coding"])),
+    #    prompt_dir="prompts/coding",
+    #    memory_file=os.path.join(PATHS["projects_dir"], "memory_coding.json"),
+    #    repo_path=REPO_PATH  # Required for your custom coding agent
+    #),
 
     "writing": BaseAgent(
         name="writing",
@@ -68,6 +68,7 @@ agents = {
     )
 }
 
+chosable_agents = {"qa": agents["qa"], "writing": agents['writing']}
 # ---------------- INTERFACE CALLBACKS ----------------
 
 @cl.action_callback("switch_agent")
@@ -141,19 +142,18 @@ async def on_chat_start():
     agent_buttons = [
         # Notice payload={"agent": name} instead of payload=name
         cl.Action(name="switch_agent", payload={"agent": name}, label=name.capitalize())
-        for name in agents.keys()
+        for name in chosable_agents.keys()
     ]
 
     await cl.Message(
         content=f"""
-# AgentFlow
+# ELTE Scientific AI Assistant platform
 
 Welcome!
 
 Current agent: **{DEFAULT_AGENT}**
 
-Click a button below to switch your active agent. 
-*(If this menu scrolls out of view, just type `/menu` to bring it back!)*
+Please explain what project you are working on and we will try to assist you!
 """,
         actions=agent_buttons
     ).send()
@@ -170,26 +170,30 @@ async def on_reset_memory(action: cl.Action):
 @cl.on_message
 async def on_message(message: cl.Message):
     user_input = message.content.strip()
+    if user_input.lower() == "/reset":
+        reset_all_memories()
+        await cl.Message(content="🧹 **All memory files and agent logs reset.**").send()
+        return
 
     # Handle the menu command override
     if user_input.lower().startswith("/agent"):
         parts = user_input.split()
         if len(parts) > 1:
             target_agent = parts[1].lower()
-            if target_agent in agents:
+            if target_agent in chosable_agents:
                 cl.user_session.set("agent_name", target_agent)
                 await cl.Message(
                     content=f"🤖 Switched active agent to **{target_agent.upper()}**."
                 ).send()
                 return
             else:
-                avail = ", ".join([f"`{k}`" for k in agents.keys()])
+                avail = ", ".join([f"`{k}`" for k in chosable_agents.keys()])
                 await cl.Message(
                     content=f"⚠️ Agent `{target_agent}` not found. Available: {avail}"
                 ).send()
                 return
         else:
-            avail = ", ".join([f"`{k}`" for k in agents.keys()])
+            avail = ", ".join([f"`{k}`" for k in chosable_agents.keys()])
             await cl.Message(
                 content=f"ℹ️ Usage: `/agent <name>`. Available: {avail}"
             ).send()
@@ -204,7 +208,7 @@ async def on_message(message: cl.Message):
     # IDENTIFY TARGET AGENTS
     # ---------------------------------------------------------
     agent_name = cl.user_session.get("agent_name", DEFAULT_AGENT)
-    chosen_agent = agents[agent_name]
+    chosen_agent = chosable_agents[agent_name]
     
     # Fallback to QA agent for planning if an explicit planner agent isn't configured
     planner_agent = agents.get("planner", agents["qa"])
