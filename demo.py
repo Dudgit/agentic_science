@@ -5,10 +5,12 @@ import torch
 import chainlit as cl
 import re
 import asyncio
+from dotenv import load_dotenv
 
 from chainlit.data.sql_alchemy import SQLAlchemyDataLayer
 from chainlit.data import get_data_layer
 from chainlit.types import ThreadDict
+from chainlit.input_widget import TextInput
 
 from agents.base import BaseAgent
 from agents.coding import CodingAgent
@@ -19,14 +21,16 @@ from utils.io import load_json, update_json, update_summary_md, strip_thoughts
 from utils.parser import parse_json_response
 from config import PATHS, CURRENT_MODEL, MODELS
 
+load_dotenv()
+
 # ---------------- CONFIGURATION ----------------
 DEFAULT_AGENT = "coding"
 PROJECT_MEMORY = os.path.join(PATHS["projects_dir"], "project_memory.json")
+PROJECT_PROFILE = os.path.join(PATHS["projects_dir"], "project_profile.json")
 SUMMARY_MD = os.path.join(PATHS["projects_dir"], "summarized.md")
-REPO_PATH = "/v/ijziqt/agentic_science/sample_project"  # Path for the CodingAgent X-Ray vision
+REPO_PATH = "/v/ijziqt/agentic_science/sample_project"  
 
 # ---------------- PERSISTENCE LAYER ----------------
-# This is what makes Chainlit remember and LIST previous chats in the sidebar.
 # Run `sqlite3 chainlit_chats.db < schema.sql` once before first launch.
 @cl.data_layer
 def get_data_layer():
@@ -35,7 +39,6 @@ def get_data_layer():
     )
 
 # ---------------- AUTH ----------------
-# Chainlit only lists/persists chat history per identified user.
 # Replace this with real credential checking before sharing the app with others.
 @cl.password_auth_callback
 def auth_callback(username: str, password: str):
@@ -94,11 +97,10 @@ chosable_agents = {"qa": agents["qa"], "writing": agents['writing']}
 
 @cl.on_shared_thread_view
 async def on_shared_thread_view(thread: ThreadDict, viewer: cl.User | None) -> bool:
-    """
-    Required for the native 'Share' button (top-right of a thread) to work.
-    Return True to let anyone with the link view a shared thread read-only.
-    Tighten this later (e.g. check viewer against an allowlist) if needed.
-    """
+
+   #Required for the native 'Share' button (top-right of a thread) to work.
+   #Return True to let anyone with the link view a shared thread read-only.
+    
     return True
 
 
@@ -156,39 +158,198 @@ Only include information worth remembering. Do not include trivial chat.
     except Exception as e:
         print(f"Could not parse summary: {e}")
 
+#----------------------- PROJECT PROFILE (Before starting the chat)----------------
+def load_project_profile() -> dict:
+    """Loads existing project profile if present."""
+    if os.path.exists(PROJECT_PROFILE):
+        try:
+            with open(PROJECT_PROFILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+def save_project_profile(profile_data: dict):
+    """Saves profile to disk and session."""
+    os.makedirs(os.path.dirname(PROJECT_PROFILE), exist_ok=True)
+    with open(PROJECT_PROFILE, "w") as f:
+        json.dump(profile_data, f, indent=4)
+
+
+# ---------------- PROJECT INITIALIZATION MODAL ----------------
+async def show_project_setup_modal(profile: dict = None):
+    """Renders structured input boxes for each project attribute."""
+    profile = profile or {}
+    
+    settings = await cl.ChatSettings([
+        TextInput(
+            id="project_name",
+            label="Project Name",
+            initial=profile.get("project_name", "Autonomous Science Experiment"),
+            description="Short title for your project"
+        ),
+        TextInput(
+            id="project_goal",
+            label="Project Objective & Core Goal",
+            initial=profile.get("project_goal", "Benchmark multi-agent reasoning and verification"),
+            description="The core problem or hypothesis to solve"
+        ),
+        TextInput(
+            id="tech_stack",
+            label="Target Tech Stack & Libraries",
+            initial=profile.get("tech_stack", "Python, PyTorch, vLLM"),
+            description="Frameworks, environments, or databases targeted"
+        ),
+        TextInput(
+            id="constraints",
+            label="Deliverable Target & Constraints",
+            initial=profile.get("constraints", "Modular scripts, PEP8, production-ready"),
+            description="Operational constraints or formatting standards"
+        )
+    ]).send()
+    return settings
+
+#----------------------- PROJECT QUESTIONNAIRE ----------------
+async def init_project_settings(profile: dict = None):
+    """Renders all project questions in a single structured configuration form."""
+    profile = profile or {}
+    
+    settings = await cl.ChatSettings([
+        TextInput(
+            id="project_name",
+            label="Project Name",
+            initial=profile.get("project_name", "Autonomous Science Project"),
+            description="Short name or title for this workspace"
+        ),
+        TextInput(
+            id="project_goal",
+            label="Project Objective & Core Goal",
+            initial=profile.get("project_goal", ""),
+            description="What problem or feature are we building/researching?"
+        ),
+        TextInput(
+            id="tech_stack",
+            label="Target Tech Stack & Libraries",
+            initial=profile.get("tech_stack", "Python, PyTorch, vLLM"),
+            description="Frameworks, environments, or databases targeted"
+        ),
+        TextInput(
+            id="constraints",
+            label="Deliverable Target & Constraints",
+            initial=profile.get("constraints", "Modular scripts, production-ready, PEP8"),
+            description="Output format, strict conventions, or operational boundaries"
+        )
+    ]).send()
+    
+    return settings
+
+#----------------------- User Questionnaire Flow ----------------
+@cl.on_settings_update
+async def on_settings_update(settings):
+    profile = {
+        "project_name": settings.get("project_name", "New Project").strip(),
+        "project_goal": settings.get("project_goal", "General Workspace").strip(),
+        "tech_stack": settings.get("tech_stack", "Standard Python").strip(),
+        "constraints": settings.get("constraints", "None").strip(),
+    }
+    save_project_profile(profile)
+    cl.user_session.set("project_profile", profile)
+
+    already_initialized = cl.user_session.get("project_initialized", False)
+
+    if not already_initialized:
+        # First-time setup: confirm profile AND show the ready-to-chat screen together
+        cl.user_session.set("project_initialized", True)
+        agent_buttons = [
+            cl.Action(name="switch_agent", payload={"agent": name}, label=name.capitalize())
+            for name in agents.keys()
+        ]
+        await cl.Message(
+            content=(
+                f"✅ **Project Scope Configured — Ready to chat!**\n\n"
+                f"| Field | Value |\n"
+                f"|---|---|\n"
+                f"| **Project Name** | {profile['project_name']} |\n"
+                f"| **Objective** | {profile['project_goal']} |\n"
+                f"| **Tech Stack** | `{profile['tech_stack']}` |\n"
+                f"| **Constraints** | {profile['constraints']} |\n\n"
+                f"**Active Agent:** {DEFAULT_AGENT.capitalize()}\n\n"
+                f"Click a button below if you want to switch your active agent:"
+            ),
+            actions=agent_buttons
+        ).send()
+    else:
+        # Later edits (mid-chat /reset_profile) just confirm the update, no re-welcome
+        await cl.Message(
+            content=(
+                f"✅ **Project Scope Updated**\n\n"
+                f"| Field | Value |\n"
+                f"|---|---|\n"
+                f"| **Project Name** | {profile['project_name']} |\n"
+                f"| **Objective** | {profile['project_goal']} |\n"
+                f"| **Tech Stack** | `{profile['tech_stack']}` |\n"
+                f"| **Constraints** | {profile['constraints']} |\n"
+            )
+        ).send()
+
 # ---------------- CHAINLIT UI ----------------
 
 @cl.on_chat_start
 async def on_chat_start():
     cl.user_session.set("agent_name", DEFAULT_AGENT)
+    cl.user_session.set("project_initialized", False)
 
-    agent_buttons = [
-        cl.Action(name="switch_agent", payload={"agent": name}, label=name.capitalize())
-        for name in chosable_agents.keys()
-    ]
+    defaults = {
+        "project_name": "Autonomous Science Experiment",
+        "project_goal": "Benchmark multi-agent reasoning and verification",
+        "tech_stack": "Python, PyTorch, vLLM",
+        "constraints": "Modular scripts, PEP8, production-ready",
+    }
 
-    await cl.Message(
-        content=f"""
-# ELTE Scientific AI Assistant platform
-
-Welcome!
-
-Current agent: **{DEFAULT_AGENT}**
-
-Please explain what project you are working on and we will try to assist you!
-""",
-        actions=agent_buttons
+    # Blocks here until the user presses "Confirm & Start"
+    res = await cl.AskElementMessage(
+        content="## 🎯 Project Setup\nFill in your project details to begin.",
+        element=cl.CustomElement(name="ProjectForm", props=defaults),
+        timeout=1800,
     ).send()
 
+    profile = {**defaults, **(res or {})}   # falls back to defaults on timeout
+    save_project_profile(profile)
+    cl.user_session.set("project_profile", profile)
+    cl.user_session.set("project_initialized", True)
 
+    # Keep the ⚙️ panel for later edits, prefilled with what they just entered
+    await show_project_setup_modal(profile)
+
+    agent_buttons = [
+        cl.Action(name="switch_agent", payload={"agent": n}, label=n.capitalize())
+        for n in agents.keys()
+    ]
+    await cl.Message(
+        content=(
+            f"✅ **{profile['project_name']}** is ready.\n\n"
+            f"- **Goal:** {profile['project_goal']}\n"
+            f"- **Stack:** `{profile['tech_stack']}`\n"
+            f"- **Constraints:** {profile['constraints']}\n\n"
+            f"Active agent: **{DEFAULT_AGENT.capitalize()}**. Switch below or just start typing."
+        ),
+        actions=agent_buttons,
+    ).send()
+
+#-----------------  CHAT RESUME ----------------
 @cl.on_chat_resume
 async def on_chat_resume(thread: ThreadDict):
-    """
-    Fires when the user clicks a PREVIOUS chat in the sidebar.
-    Without this, Chainlit still lists old chats, but reopening one
-    would silently drop back to defaults instead of restoring state.
-    """
     cl.user_session.set("agent_name", DEFAULT_AGENT)
+
+    # Restore profile if saved on thread, or fall back to general
+    thread_meta = thread.get("metadata") or {}
+    profile = thread_meta.get("project_profile", {
+        "project_name": thread.get("name") or "Resumed Project",
+        "project_goal": "Resumed Session",
+        "tech_stack": "Python",
+        "constraints": "None"
+    })
+    cl.user_session.set("project_profile", profile)
 
     agent_buttons = [
         cl.Action(name="switch_agent", payload={"agent": name}, label=name.capitalize())
@@ -199,16 +360,9 @@ async def on_chat_resume(thread: ThreadDict):
         actions=agent_buttons
     ).send()
 
-
+# -----------------  RENAME THREAD ----------------
 async def rename_thread_if_needed(user_input: str):
-    """
-    Chainlit names a thread after whichever interaction happens first in the
-    session. Since on_chat_start immediately shows agent-switch buttons,
-    clicking one becomes 'the first interaction' and the thread gets stuck
-    named after the action (e.g. 'switch_agent') forever. This overrides
-    that name using the first *real* text message instead, the first time
-    it happens in this session.
-    """
+   
     if cl.user_session.get("thread_renamed"):
         return
     data_layer = get_data_layer()
@@ -224,27 +378,19 @@ async def rename_thread_if_needed(user_input: str):
 
 
 async def tag_thread_with_agent(agent_name: str):
-    """
-    Implements agent-based grouping: records which agent handled this
-    thread, so history can be filtered by agent later (see the /history
-    command below).
-
-    NOTE: Chainlit's `tags` column is designed for Postgres's native array
-    type. On SQLite it silently fails (Chainlit passes a raw Python list
-    straight to the SQLite driver, which can't bind list values at all -
-    confirmed directly against this exact code path). `metadata` is JSON
-    -encoded before being stored, so it works correctly on SQLite. We use
-    metadata instead for that reason.
-    """
     data_layer = get_data_layer()
     thread_id = cl.context.session.thread_id
     if not data_layer or not thread_id:
         return
+    
+    profile = cl.user_session.get("project_profile", {})
     try:
-        await data_layer.update_thread(thread_id=thread_id, metadata={"agent": agent_name})
+        await data_layer.update_thread(
+            thread_id=thread_id,
+            metadata={"agent": agent_name, "project_profile": profile}
+        )
     except Exception as e:
         print(f"[System] Could not tag thread: {e}")
-
 
 @cl.on_message
 async def on_message(message: cl.Message):
@@ -255,6 +401,24 @@ async def on_message(message: cl.Message):
         return
 
     await rename_thread_if_needed(user_input)
+
+    # Command: View active project scope
+    if user_input.lower() == "/profile":
+        profile = cl.user_session.get("project_profile") or load_project_profile()
+        msg = (
+            f"### 📋 Current Project Profile\n"
+            f"- **Goal**: {profile.get('project_goal', 'Not set')}\n"
+            f"- **Tech Stack**: {profile.get('tech_stack', 'Not set')}\n"
+            f"- **Constraints**: {profile.get('constraints', 'Not set')}\n"
+        )
+        await cl.Message(content=msg).send()
+        return
+
+    # Command: Reset profile
+    if user_input.lower() == "/reset_profile":
+        profile = cl.user_session.get("project_profile", {})
+        await show_project_setup_modal(profile)
+        return
 
     if user_input.lower().startswith("/history"):
         parts = user_input.split(maxsplit=1)
@@ -313,6 +477,16 @@ async def on_message(message: cl.Message):
     status_msg = cl.Message(content="🤖 Initializing Agentic Workflow Assembly Line...")
     await status_msg.send()
 
+    # --- INJECT PROJECT CONTEXT HEADER ---
+    profile = cl.user_session.get("project_profile") or load_project_profile()
+    project_context_header = (
+        f"### GLOBAL PROJECT BOUNDARIES & SPECIFICATIONS ###\n"
+        f"Project Name: {profile.get('project_name', 'General Workspace')}\n"
+        f"Project Goal: {profile.get('project_goal', 'General Workspace')}\n"
+        f"Target Tech Stack: {profile.get('tech_stack', 'Standard Python')}\n"
+        f"Hard Constraints: {profile.get('constraints', 'None')}\n"
+        f"----------------------------------------------------\n\n"
+    )
     try:
         # STEP 1: Planner
         # ---------------------------------------------------------
@@ -343,8 +517,10 @@ async def on_message(message: cl.Message):
         await status_msg.update()
         await asyncio.sleep(0.15)
 
+        # Prepend the context header so the plan adheres to the tech stack and goals
         planner_prompt = (
-            f"Break down the user's request into a concrete engineering plan or structural outline.\n"
+            f"{project_context_header}"
+            f"Break down the user's request into a concrete engineering plan or structural outline conforming to the global project specifications.\n"
             f"If you need external documentation, libraries, or recent data to complete this plan accurately, "
             f"you MUST start your response with: SEARCH: [your search query].\n\n"
             f"User Request: {user_input}"
@@ -369,6 +545,7 @@ async def on_message(message: cl.Message):
             await asyncio.sleep(0.15)
 
             plan_output = await cl.make_async(planner_agent.run)(
+                f"{project_context_header}"
                 f"We performed a search for '{search_query}'. Here are the findings:\n\n{web_raw}\n\n"
                 f"Rewrite your structural engineering blueprint incorporating these new constraints and facts."
             )
@@ -379,8 +556,11 @@ async def on_message(message: cl.Message):
         await status_msg.update()
         await asyncio.sleep(0.15)
 
+        # Prepend the context header so the generator uses the exact libraries and conventions
         execution_prompt = (
+            f"{project_context_header}"
             f"### SYSTEM INSTRUCTION ###\n"
+            f"Implement strictly adhering to the target tech stack and project constraints.\n\n"
             f"### BLUEPRINT TO IMPLEMENT ###\n{plan_output}"
         )
         raw_delivery = await cl.make_async(chosen_agent.run)(execution_prompt)

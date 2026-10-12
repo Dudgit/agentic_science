@@ -1,0 +1,7 @@
+{
+    "project_name": "Autonomous Science Experiment",
+    "project_goal": "Benchmark multi-agent reasoning and verification",
+    "tech_stack": "Python, PyTorch, vLLM",
+    "constraints": "Modular scripts, PEP8, production-ready",
+    "submitted": true
+}
