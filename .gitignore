@@ -3,3 +3,4 @@
 .txt
 .chainlit
 .ipynb_checkpoints
+.env
