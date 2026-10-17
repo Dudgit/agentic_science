@@ -9,3 +9,13 @@ Note that this is just a ChatGPT generated placeholder, later needs to be modifi
 - Skills and other md.
 - Add other agents if needed.
 - Add time logging, for fund summary.
+
+## TO RUN THE PROJECT
+
+- Clone the repository and install dependencies
+- sqlite3 chainlit_chats.db < schema.sql
+- Create a chainlit API
+    ```
+    chainlit create-secret
+    ```
+- Copy the generated random string and paste into the `.env` file
