@@ -1,10 +1,6 @@
 *.pyc
 *__pycache__/*
 .txt
-<<<<<<< HEAD
 .chainlit
 .ipynb_checkpoints
 .env
-=======
-.ipynb_checkpoints
->>>>>>> f32ea88 (Adding the structural changes along with a dummy login credentials)
